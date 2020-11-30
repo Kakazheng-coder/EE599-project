@@ -79,6 +79,7 @@ num_workers = 10
 
 
 class_to_ix,ix_to_class,sorted_class_to_ix = label_with_index(meta_root) ##labels_name and its one-hot encode
+classes = len(class_to_ix) # total labels number
 X, y = clean_images(image_root, min_side=299) #clean and label
 X_train, X_test, y_train, y_test= train_test_split(X, y, test_size=0.2) #split
 
