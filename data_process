@@ -1,0 +1,100 @@
+import matplotlib.pyplot as plt
+import matplotlib.image as img
+import os
+from os import listdir
+from os.path import isfile, join
+import numpy as np
+import collections
+
+
+image_root = 'D:\\EE599 deep leaning\\project\\food-101\\food-101\\images\\'
+meta_root = 'D:\\EE599 deep leaning\\project\\food-101\\food-101\\meta\\classes.txt'
+
+def label_with_index(meta_root): #build dictionary between label name and it's number by one-hot encode
+    class_to_ix = {} #{label_name: index}
+    ix_to_class = {} #{index: label_name}
+    with open(meta_root, 'r') as txt:
+        classes = [l.strip() for l in txt.readlines()]
+        class_to_ix = dict(zip(classes, range(len(classes))))
+        ix_to_class = dict(zip(range(len(classes)), classes))
+        class_to_ix = {v: k for k, v in ix_to_class.items()}
+    sorted_class_to_ix = collections.OrderedDict(sorted(class_to_ix.items()))
+    return class_to_ix,ix_to_class,sorted_class_to_ix
+
+#class_to_ix,ix_to_class,sorted_class_to_ix = label_with_index(meta_root)
+
+
+
+
+def clean_label_images(root, min_side=299): #Resize all images and label it
+    all_imgs = []
+    all_classes = []
+    resize_count = 0
+    invalid_count = 0
+    for i, subdir in enumerate(listdir(root)): #i is current loop number, subdir is folder name
+        imgs = listdir(join(root, subdir)) #get all the images name
+        class_ix = class_to_ix[subdir]   # find the index matched with folder name
+        #print(i, class_ix, subdir)   
+        for img_name in imgs:     #do clean and label in this folder
+            img_arr = img.imread(join(root, subdir, img_name)) #read image
+            img_arr_rs = img_arr
+            print(img_arr_rs)
+            try:
+                w, h, _ = img_arr.shape #get the width and height of this picture
+                if w < min_side:
+                    wpercent = (min_side/float(w))
+                    hsize = int((float(h)*float(wpercent)))
+                    #print('new dims:', min_side, hsize)
+                    img_arr_rs = imresize(img_arr, (min_side, hsize)) #resize for width
+                    resize_count += 1
+                elif h < min_side:
+                    hpercent = (min_side/float(h))
+                    wsize = int((float(w)*float(hpercent)))
+                    #print('new dims:', wsize, min_side)
+                    img_arr_rs = imresize(img_arr, (wsize, min_side)) #resize for height
+                    resize_count += 1
+                all_imgs.append(img_arr_rs)  #collect images
+                all_classes.append(class_ix) #collect labels
+            except:
+                #print('Skipping bad image: ', subdir, img_name) #delete the images which can not resize
+                invalid_count += 1
+    #print(len(all_imgs), 'images loaded')
+    #print(resize_count, 'images resized')
+    #print(invalid_count, 'images skipped')
+    return np.array(all_imgs), np.array(all_classes) #return images data information and labels
+    
+#X, y = clean_images(image_root, min_side=299)
+
+def match_label_image(X,y): # Match every data information with the lable
+    matchset = []     
+    for i in range(len(y)):
+        matchset.append((X[i],y[i]))
+        
+    return matchset ##[(image_information[0],labels[0]),(image_information[1],labels[1])]
+
+
+debug == True
+batch_size == 20
+num_workers = 10
+
+
+class_to_ix,ix_to_class,sorted_class_to_ix = label_with_index(meta_root) ##labels_name and its one-hot encode
+X, y = clean_images(image_root, min_side=299) #clean and label
+X_train, X_test, y_train, y_test= train_test_split(X, y, test_size=0.2) #split
+
+if debug==True: #for first 100 data
+        train_set = match_label_image(X_train[:100],y_train[:100])
+        test_set = match_label_image(X_test[:100],y_test[:100])
+        dataset_size = {'train': len(y_train[:100]), 'test': len(y_test[:100])}
+else:
+        train_set = match_label_image(X_train,y_train)
+        test_set = match_label_image(X_test,y_test)
+        dataset_size = {'train': len(y_train), 'test': len(y_test)}
+
+datasets = {'train': train_set, 'test': test_set} ##whole dataset
+dataloaders = {x: DataLoader(datasets[x], 
+                                 shuffle=True if x=='train' else False, 
+                                 batch_size=batch_size, 
+                                 num_workers=num_workers) 
+                                 for x in ['train', 'test']} 
+# return dataloaders, classes, dataset_size 
