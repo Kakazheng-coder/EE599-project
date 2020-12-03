@@ -26,6 +26,8 @@ class GlobalNetwork(nn.Module):
         
         self.cnn3 = nn.Sequential(nn.Conv2d(20, 25, kernel_size=10,stride=2,padding=1), nn.ReLU(inplace=True), nn.BatchNorm2D(25))
         self.se3 = SE_Block(25,16)
+		
+		self.fc = nn.sequential(nn.Linear(121*121*15*56*56*20*25*25*25,1024), nn.ReLU(inplace = True), nn.Dropout2d(p=0.5), nn.Linear(1024,101))
 """
 nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True), nn.MaxPool2d(3, stride=2), nn.Dropout2d(p=0.3), nn.Conv2d(256, 384, kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True),nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2), nn.MaxPool2d(3, stride = 2), nn.Dropout2d(p=0.3)) 
 """
@@ -33,6 +35,7 @@ nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True), nn
         #self.fc1 = nn.Sequential(nn.Linear(25*25*25, 1024), nn.ReLU(inplace=True), nn.Dropout2d(p=0.5), nn.Linear(1024, 128), nn.ReLU(inplace=True), nn.Linear(128,2))
 
 	def layer1(self,x):
+		
 		output1 = self.cnn1(x)
         g1 = torch.mean(output1,1,True)
         c1 = self.se1(output1)
@@ -51,7 +54,7 @@ nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True), nn
         g3 = torch.mean(output3,1,True)
         c3 = self.se3(output3)
         A3 = F.Conv2D(g3,g3.size()[1],c3.size()[1],kernel_size = c3.size()[2],stride=1)
-		return g3,A3, output2
+		return g3,A3, output3
 	
 	def forward(self, x):
 
@@ -65,7 +68,7 @@ nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True), nn
         
         concat = torch.cat((g1,g2,g3),axis=1)
         #The other parameter is num_classes. I am taking it as 100
-        gbl = F.Linear(concat,concat.size()[1],100)
+        gbl = self.fc(concat)
         
 	return gbl
         
