@@ -27,7 +27,7 @@ class GlobalNetwork(nn.Module):
         self.cnn3 = nn.Sequential(nn.Conv2d(20, 25, kernel_size=10,stride=2,padding=1), nn.ReLU(inplace=True), nn.BatchNorm2D(25))
         self.se3 = SE_Block(25,16)
 		
-		self.fc = nn.sequential(nn.Linear(121*121*15*56*56*20*25*25*25,1024), nn.ReLU(inplace = True), nn.Dropout2d(p=0.5), nn.Linear(1024,101))
+	self.fc = nn.sequential(nn.Linear(121*121*15*56*56*20*25*25*25,1024), nn.ReLU(inplace = True), nn.Dropout2d(p=0.5), nn.Linear(1024,101))
 """
 nn.Conv2d(384,256 , kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True), nn.MaxPool2d(3, stride=2), nn.Dropout2d(p=0.3), nn.Conv2d(256, 384, kernel_size=3,stride=1,padding=1), nn.ReLU(inplace=True),nn.LocalResponseNorm(5,alpha=0.0001,beta=0.75,k=2), nn.MaxPool2d(3, stride = 2), nn.Dropout2d(p=0.3)) 
 """
