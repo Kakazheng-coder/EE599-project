@@ -27,6 +27,7 @@ from os.path import isfile, join
 import numpy as np
 import collections
 from torchvision import transforms
+import torch
 
 image_root = './images/'
 meta_root = './images/class/class.txt'
@@ -43,7 +44,7 @@ def label_with_index(meta_root): #build dictionary between label name and it's n
     return class_to_ix,ix_to_class,sorted_class_to_ix
 
 
-def clean_label_images(class_to_ix, root): #Resize all images and label it
+def clean_label_images(class_to_ix, root, min_side=299): #Resize all images and label it
     all_imgs = []
     all_classes = []
     resize_count = 0
@@ -54,44 +55,32 @@ def clean_label_images(class_to_ix, root): #Resize all images and label it
     transform_ToTensor = transforms.ToTensor()
 
     for i, subdir in enumerate(listdir(root)): #i is current loop number, subdir is folder name
+
         imgs = listdir(join(root, subdir)) #get all the images name
+        print(len(imgs))
         class_ix = class_to_ix[subdir]   # find the index matched with folder name
-        #print(i, class_ix, subdir)   
-        for img_name in imgs:     #do clean and label in this folder
+        print(i, class_ix, subdir)   
+        for i,img_name in enumerate(imgs):     #do clean and label in this folder
+            print(i)
             img_arr = img.imread(join(root, subdir, img_name)) #read image
+            print('pass1')
             img_arr_rs = img_arr
-            # print(img_arr_rs)
-            try:
-                img_arr_rs = transform_PIL(img_arr)
-                img_arr_rs = transform_ReS(img_arr)
-                img_arr_rs = transform_ToTensor(img_arr)
-                
-                all_imgs.append(img_arr_rs)  #collect images
-                all_classes.append(class_ix) #collect labels
-            except:
-                invalid_count += 1
+            img_arr_rs = transform_PIL(img_arr)
+            print('pass2')
+            img_arr_rs = transform_ReS(img_arr_rs)
+            print('pass3')
+            img_arr_rs = transform_ToTensor(img_arr_rs)
+            print(img_arr_rs.shape)
+            all_imgs.append(img_arr_rs)  #collect images
+            all_classes.append(class_ix) #collect labels
+            
 
-    return np.array(all_imgs), np.array(all_classes) #return images data information and labels
+    return all_imgs, np.array(all_classes) #return images data information and labels
     
-
-def match_label_image(X,y): # Match every data information with the lable
-    matchset = []     
-    for i in range(len(y)):
-        matchset.append((X[i],y[i]))
-        
-    return matchset ##[(image_information[0],labels[0]),(image_information[1],labels[1])]
-
-batch_size = 20
-num_workers = 10
-
-class_to_ix,ix_to_class,sorted_class_to_ix = label_with_index(meta_root) ##labels_name and its one-hot encode
-classes = len(class_to_ix) # total labels number
-X, y = clean_label_images(class_to_ix, image_root) #clean and label
-
 class MyDataset(torch.utils.data.Dataset):
     
     def __init__(self, data, target, transform=None):
-        self.data = torch.from_numpy(data).float()
+        self.data = data
         self.target = torch.from_numpy(target).long()
         self.transform = transform
         
@@ -106,14 +95,11 @@ class MyDataset(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.data)
-
-d = Train_data[:,:-1]
-target = labels[:,-1]
 dataset = MyDataset(X, y)
  
 split_ratio=0.8 #80-20 train/validation split 
-length_train = int(split_ratio*len(d)) #number of training samples 
-length_valid = len(d) - length_train #number of training samples 
+length_train = int(split_ratio*len(X)) #number of training samples 
+length_valid = len(X) - length_train #number of training samples 
 
 trainset, valset = torch.utils.data.random_split(dataset, [length_train, length_valid])
 
@@ -200,7 +186,6 @@ class GlobalNetwork(nn.Module):
         g3, A3,_ = self.layer3(A2)
 
         g1 = g1.view(-1,113*113*1)
-        print(g1.size())
         g2 = g2.view(-1,56*56*1)
         g3 = g3.view(-1,27*27*1)
 
@@ -282,22 +267,23 @@ def eval_model(model,loader,criterion,device):
     
     return(Accuracy,  fin_loss,  predlist, lbllist)
 
-#defining loss and optimizer 
+#defining loss and optimizer
+model = GlobalNetwork()
 criterion = nn.CrossEntropyLoss()   # includes softmax for this criterion
 initial_learning_rate = 0.0001
-optimizer = optim.Adam(net.parameters(), lr=initial_learning_rate, weight_decay = 0.01) # weight decay adds L2 optimizer
+optimizer = optim.Adam(model.parameters(), lr=initial_learning_rate, weight_decay = 0.01) # weight decay adds L2 optimizer
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1);  # learning rate schedular
-
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 num_epochs=3
 iter_count = 0
-net=net.to(device)
+
+model=model.to(device)
 train_loss_list=[]
 train_acc_list=[]
 val_loss_list=[]
 val_acc_list=[]
 best_val_acc=0
 
-#TRAINING LOOP
 for i in np.arange(num_epochs): #outer loop 
     train_loss=0.0
     correct=0
@@ -312,7 +298,7 @@ for i in np.arange(num_epochs): #outer loop
         optimizer.zero_grad()
         
         #forward pass through the network
-        outputs = net(inputs) #batch_size x 10
+        outputs = model(inputs) #batch_size x 10
         
         #compute the loss between ground truth labels and outputs
         loss = criterion(outputs, labels)
@@ -326,21 +312,21 @@ for i in np.arange(num_epochs): #outer loop
         
     train_loss=train_loss/len(trainloader) #computing the total loss for the entire training set
     train_accuracy=100*(correct/len(trainloader.dataset)) #train accuracy for the dataset
-    val_accuracy,val_loss,  predlist, lbllist =eval_model(net,valloader,criterion,device) #validation accuracy, validation loss for the entire validation set  
+    val_accuracy,val_loss,  predlist, lbllist =eval_model(model,valloader,criterion,device) #validation accuracy, validation loss for the entire validation set  
 
     
     train_loss_list.append(train_loss)
     train_acc_list.append(train_accuracy)
     val_loss_list.append(val_loss)
     val_acc_list.append(val_accuracy)
-    net.train(True)
+    model.train(True)
     print('Epoch:%d,Train Loss:%f,Training Accuracy:%f,Validation Accuracy:%f'%(i+1,train_loss,train_accuracy,val_accuracy))
     if(val_accuracy > best_val_acc):
         print('Saving the best model')
         best_val_acc=val_accuracy
         torch.save({
             'epoch': i+1,
-            'model_state_dict': net.state_dict(),
+            'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': train_loss}, 'best_model.pth') #saving all the required information in .pth file (required for restarting models later)        
 
