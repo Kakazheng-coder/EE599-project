@@ -30,7 +30,7 @@ from torchvision import transforms
 import torch
 
 image_root = './images/'
-meta_root = './images/class/class.txt'
+meta_root = './classes/classes.txt'
 
 def label_with_index(meta_root): #build dictionary between label name and it's number by one-hot encode
     class_to_ix = {} #{label_name: index}
