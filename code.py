@@ -47,6 +47,11 @@ def clean_label_images(class_to_ix, root, min_side=299): #Resize all images and 
     all_classes = []
     resize_count = 0
     invalid_count = 0
+    
+    transform_ReS = transforms.Resize((255,255))
+    transform_PIL = transforms.ToPILImage()
+    transform_ToTensor = transforms.ToTensor()
+
     for i, subdir in enumerate(listdir(root)): #i is current loop number, subdir is folder name
         imgs = listdir(join(root, subdir)) #get all the images name
         class_ix = class_to_ix[subdir]   # find the index matched with folder name
@@ -56,19 +61,10 @@ def clean_label_images(class_to_ix, root, min_side=299): #Resize all images and 
             img_arr_rs = img_arr
             # print(img_arr_rs)
             try:
-                w, h, _ = img_arr.shape #get the width and height of this picture
-                if w < min_side:
-                    wpercent = (min_side/float(w))
-                    hsize = int((float(h)*float(wpercent)))
-                    #print('new dims:', min_side, hsize)
-                    img_arr_rs = imresize(img_arr, (min_side, hsize)) #resize for width
-                    resize_count += 1
-                elif h < min_side:
-                    hpercent = (min_side/float(h))
-                    wsize = int((float(w)*float(hpercent)))
-                    #print('new dims:', wsize, min_side)
-                    img_arr_rs = imresize(img_arr, (wsize, min_side)) #resize for height
-                    resize_count += 1
+                img_arr_rs = transform_PIL(img_arr)
+                img_arr_rs = transform_ReS(img_arr)
+                img_arr_rs = transform_ToTensor(img_arr)
+                
                 all_imgs.append(img_arr_rs)  #collect images
                 all_classes.append(class_ix) #collect labels
             except:
