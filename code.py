@@ -26,6 +26,7 @@ from os import listdir
 from os.path import isfile, join
 import numpy as np
 import collections
+from torchvision import transforms
 
 image_root = './images/'
 meta_root = './images/class/class.txt'
@@ -42,7 +43,7 @@ def label_with_index(meta_root): #build dictionary between label name and it's n
     return class_to_ix,ix_to_class,sorted_class_to_ix
 
 
-def clean_label_images(class_to_ix, root, min_side=299): #Resize all images and label it
+def clean_label_images(class_to_ix, root): #Resize all images and label it
     all_imgs = []
     all_classes = []
     resize_count = 0
@@ -85,7 +86,7 @@ num_workers = 10
 
 class_to_ix,ix_to_class,sorted_class_to_ix = label_with_index(meta_root) ##labels_name and its one-hot encode
 classes = len(class_to_ix) # total labels number
-X, y = clean_label_images(class_to_ix, image_root, min_side=299) #clean and label
+X, y = clean_label_images(class_to_ix, image_root) #clean and label
 
 class MyDataset(torch.utils.data.Dataset):
     
