@@ -126,7 +126,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
+from SENET import senet154
              
 class Spatial(nn.Module):
   def __init__(self):
