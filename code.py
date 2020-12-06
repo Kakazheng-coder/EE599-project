@@ -132,18 +132,19 @@ class Spatial(nn.Module):
   def __init__(self):
     super(Spatial, self).__init__()
     self.conv1 = nn.Conv2d(1, 1, kernel_size=3, stride=2, padding=1)
+    self.bn1 = nn.BatchNorm2d(1)
     self.conv2 = nn.Conv2d(1, 1, kernel_size=1)
-
+    self.bn2 = nn.BatchNorm2d(1)
   def forward(self, x):
     # global cross-channel averaging
     x = torch.mean(x,1, keepdim=True) # 由hwc 变为 hw1
     # 3-by-3 conv
     h = x.size(2)
-    x = self.conv1(x)
+    x = F.relu(self.bn1(self.conv1(x)))
     # bilinear resizing
     x = F.upsample(x, (h,h), mode='bilinear', align_corners=True)
     # scaling conv
-    x = self.conv2(x)
+    x = F.relu(self.bn2(self.conv2(x)))
     return x
 						 
 class Channel(nn.Module):
@@ -151,16 +152,18 @@ class Channel(nn.Module):
   def __init__(self, c, r=16):
     super(Channel, self).__init__()
     self.conv1 = nn.Conv2d(c, c // r, 1)
+    self.bn1 = nn.BatchNorm2d(c // r)
     self.conv2 = nn.Conv2d(c // r, c, 1)
+    self.bn2 = nn.BatchNorm2d(c)
 
 
   def forward(self, x):
-      # squeeze operation (global average pooling)
-      x = F.avg_pool2d(x, x.size()[2:]) #输出是1*1*c
-      # excitation operation (2 conv layers)
-      x = self.conv1(x)
-      x = self.conv2(x)
-      return x 
+    # squeeze operation (global average pooling)
+    x = F.avg_pool2d(x, x.size()[2:]) #输出是1*1*c
+    # excitation operation (2 conv layers)
+    x = F.relu(self.bn1(self.conv1(x)))
+    x = F.relu(self.bn2(self.conv2(x)))
+    return x 
 
 class SCA(nn.Module):
   def __init__(self,c):
@@ -168,13 +171,13 @@ class SCA(nn.Module):
     self.S = Spatial()
     self.C = Channel(c,16)
     self.conv = nn.Conv2d(c,c, kernel_size=1)
-						 
+    self.bn1 = nn.BatchNorm2d(c)
   def forward(self,x):
     S = self.S(x)
     C = self.C(x)
     SC = S*C
 
-    return torch.sigmoid(self.conv(SC))
+    return torch.sigmoid(F.relu(self.bn1(self.conv(SC))))
 
 						 
 class GlobalNetwork(nn.Module):
