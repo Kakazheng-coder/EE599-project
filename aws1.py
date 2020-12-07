@@ -28,16 +28,18 @@ import matplotlib.pyplot as plt
 import torchvision
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter 
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
-num_epochs = 3
+from SGLA import SGLANetwork
+
+num_epochs = 30
 image_root_train = './my_folder/train_set'
 image_root_test = './my_folder/val_set'
 meta_root = './Annotations/class_list.txt'
 debug = True
 train_annotations = "./Annotations/train_info.csv"
 test_annotations = "./Annotations/val_info.csv"
-batch = 16
+batch = 64
 
 def label_with_index(meta_root): #build dictionary between label name and it's number by one-hot encode
   class_to_ix = {} #{label_name: index}
@@ -63,6 +65,7 @@ def create_dataset(file1,file2, image_root_train, image_root_test):
 
   with open(file1, "r") as csv_file:
       csv_reader = csv.reader(csv_file, delimiter=',')
+      next(csv_reader)
       for lines in csv_reader:
         train_images.append(lines[0]) 
         train_labels.append(int(lines[1]))
@@ -80,6 +83,7 @@ def create_dataset(file1,file2, image_root_train, image_root_test):
 
   with open(file2, "r") as csv_file:
     csv_reader = csv.reader(csv_file, delimiter=',')
+    next(csv_reader)
     for lines in csv_reader:
       test_images.append(lines[0]) 
       test_labels.append(int(lines[1])) 
@@ -193,109 +197,7 @@ print(len(trainloader)) #number of batches
 print(inputs.size())
 print("done")
 
-class Spatial(nn.Module):
-  def __init__(self):
-    super(Spatial, self).__init__()
-    self.conv1 = nn.Conv2d(1, 1, kernel_size=3, stride=2, padding=1)
-    self.bn1 = nn.BatchNorm2d(1)
-    self.conv2 = nn.Conv2d(1, 1, kernel_size=1)
-    self.bn2 = nn.BatchNorm2d(1)
-  def forward(self, x):
-    # global cross-channel averaging
-    x = torch.mean(x,1, keepdim=True) # 由hwc 变为 hw1
-    # 3-by-3 conv
-    h = x.size(2)
-    x = F.relu(self.bn1(self.conv1(x)))
-    # bilinear resizing
-    x = F.upsample(x, (h,h), mode='bilinear', align_corners=True)
-    # scaling conv
-    x = F.relu(self.bn2(self.conv2(x)))
-    return x
-						 
-class Channel(nn.Module):
-    
-  def __init__(self, c, r=16):
-    super(Channel, self).__init__()
-    self.conv1 = nn.Conv2d(c, c // r, 1)
-    self.bn1 = nn.BatchNorm2d(c // r)
-    self.conv2 = nn.Conv2d(c // r, c, 1)
-    self.bn2 = nn.BatchNorm2d(c)
 
-
-  def forward(self, x):
-    # squeeze operation (global average pooling)
-    x = F.avg_pool2d(x, x.size()[2:]) #输出是1*1*c
-    # excitation operation (2 conv layers)
-    x = F.relu(self.bn1(self.conv1(x)))
-    x = F.relu(self.bn2(self.conv2(x)))
-    return x 
-
-class SCA(nn.Module):
-  def __init__(self,c):
-    super(SCA,self).__init__()
-    self.S = Spatial()
-    self.C = Channel(c,16)
-    self.conv = nn.Conv2d(c,c, kernel_size=1)
-    self.bn1 = nn.BatchNorm2d(c)
-  def forward(self,x):
-    S = self.S(x)
-    C = self.C(x)
-    SC = S*C
-
-    return torch.sigmoid(F.relu(self.bn1(self.conv(SC))))
-
-						 
-class GlobalNetwork(nn.Module):
-
-  def __init__(self):
-    super(GlobalNetwork, self).__init__()
-    # Setting up the Sequential of CNN Layers
-    
-    self.senet154_ = senet154(num_classes=251, pretrained=None)
-
-    self.layer0 = self.senet154_.layer0
-    #global backbone
-    self.layer1 = self.senet154_.layer1
-    self.layer2 = self.senet154_.layer2
-    self.layer3 = self.senet154_.layer3
-    self.layer4 = self.senet154_.layer4
-
-    self.fc_out = nn.Sequential(
-                                nn.Linear(2048+512+1024, 2048)
-                                nn.BatchNorm1d(2048),
-                                nn.ReLU(True),
-                                nn.Linear(2048,251)
-                                )
-
-    self.SC1 = SCA(512)
-    self.SC2 = SCA(1024)
-    self.SC3 = SCA(2048)
-
-  def forward(self, x):
-    batch_size = x.size()[0]  # obtain the batch size
-    x0 = self.layer0(x)
-    x1 = self.layer1(x0)
-    x2 = self.layer2(x1)
-    A2 = self.SC1(x2)
-    x2_out = x2*A2
-
-    GAP1 = F.adaptive_avg_pool2d(x2_out, (1, 1)).view(x2_out.size(0), -1)
-    
-    x3 = self.layer3(x2_out)
-    A3 = self.SC2(x3)
-    x3_out = x3*A3
-
-    GAP2 = F.adaptive_avg_pool2d(x3_out, (1, 1)).view(x3_out.size(0), -1)
-
-    x4 = self.layer4(x3_out)
-    A4 = self.SC3(x4)
-    x4_out = x4*A4
-
-    x4_avg = F.avg_pool2d(x4_out, x4_out.size()[2:]).view(x4_out.size(0),  -1)
-
-    concat = torch.cat([GAP1,GAP2,x4_avg],1)
-
-    return self.fc_out(concat)
 
 
 import torchvision.transforms as transforms
@@ -319,11 +221,16 @@ def eval_model(model,loader,criterion,device):
         for idx,(inputs,labels) in enumerate(loader):
             inputs=inputs.to(device)
             labels=labels.to(device)
-            outputs=model(inputs)
-            outputs=F.softmax(outputs,dim=1)
-            val_loss=criterion(outputs,labels)
+            out, global_out, local_out = model(inputs)
+            out=F.softmax(out,dim=1)
+	    global_out = F.softmax(global_out,dim=1)
+	    local_out = F.softmax(local_out, dim = 1)
+	    loss_global = criterion(global_out, labels)
+	    loss_local = criterion(local_out, labels)
+	    loss_out = criterion(out,labels)
+	    val_loss = loss_out + 0.5*loss_global + 0.5*loss_local
             total_loss=total_loss+val_loss
-            preds=torch.max(outputs,dim=1)[1]
+            preds=torch.max(out,dim=1)[1]
             
             # Append batch prediction results
             predlist=torch.cat([predlist,preds.view(-1).cpu()])
@@ -336,7 +243,7 @@ def eval_model(model,loader,criterion,device):
     return(Accuracy,  fin_loss,  predlist, lbllist)
 
 #defining loss and optimizer
-model = GlobalNetwork()
+model = SGLANetwork()
 criterion = nn.CrossEntropyLoss()   # includes softmax for this criterion
 initial_learning_rate = 0.0001
 optimizer = optim.Adam(model.parameters(), lr=initial_learning_rate, weight_decay = 0.01) # weight decay adds L2 optimizer
@@ -365,15 +272,18 @@ for i in np.arange(num_epochs): #outer loop
         optimizer.zero_grad()
         
         #forward pass through the network
-        outputs = model(inputs) #batch_size x 10
+        out, global_out, local_out = model(inputs) #batch_size x 10
         
         #compute the loss between ground truth labels and outputs
-        loss = criterion(outputs, labels)
+        loss_global = criterion(global_out, labels)
+        loss_local = criterion(local_out, labels)
+        loss_out = criterion(out,labels)
+        loss = loss_out + 0.5*loss_global + 0.5*loss_local
         
         loss.backward() #computes derivative of loss for every variable (gradients)
         optimizer.step() #optimizer updates based on gradients 
         
-        preds=torch.max(outputs,dim=1)[1] # obtaining the predicted class (dimension of outputs is batch_size x number of classes)
+        preds=torch.max(out,dim=1)[1] # obtaining the predicted class (dimension of outputs is batch_size x number of classes)
         correct=correct+(preds==labels).cpu().sum().numpy() #.cpu() transfers tensors from GPU to CPU
         train_loss=train_loss+loss.item()    
         
