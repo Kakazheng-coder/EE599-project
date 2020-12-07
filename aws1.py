@@ -251,7 +251,7 @@ class GlobalNetwork(nn.Module):
     super(GlobalNetwork, self).__init__()
     # Setting up the Sequential of CNN Layers
     
-    self.senet154_ = senet154(num_classes=#num_classes, pretrained=None)
+    self.senet154_ = senet154(num_classes=251, pretrained=None)
 
     self.layer0 = self.senet154_.layer0
     #global backbone
@@ -264,7 +264,7 @@ class GlobalNetwork(nn.Module):
                                 nn.Linear(2048+512+1024, 2048)
                                 nn.BatchNorm1d(2048),
                                 nn.ReLU(True),
-                                nn.Linear(2048,#num_classes)
+                                nn.Linear(2048,251)
                                 )
 
     self.SC1 = SCA(512)
