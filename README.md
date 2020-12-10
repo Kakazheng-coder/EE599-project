@@ -1,3 +1,3 @@
 # EE599-project
 
-1. Before we load images, we should delete ".DS_Store" file which in the images folder rather than food-101 folder
+The main code file is "aws1.py" which needs modules from "SGLA.py" and "SENET.py"
