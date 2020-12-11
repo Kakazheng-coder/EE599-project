@@ -1,4 +1,7 @@
-# EE599-project
+# EE599-project (Fall 2020)
+Prof. Brandon Franzke
+Mentor: Digbalay Bose
+(Group 2)
 
 The main code file is "aws1.py" which needs modules from "SGLA.py" and "SENET.py"
 Thus, to run the entire model "aws1.py" needs to be run.
