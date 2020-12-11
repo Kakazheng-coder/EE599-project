@@ -17,7 +17,7 @@ Use the following command to extract the dataset from kaggle:
 
 $ pip install kaggle
 
-copy the kaggle.json file to the home directory
+copy the kaggle.json file to the home directory.
 (Downloading kaggle.json: https://github.com/Kaggle/kaggle-api)
 
 $ kaggle (This shd give an error along with the path(p) to move the kaggle.json in)
@@ -25,4 +25,5 @@ $ kaggle (This shd give an error along with the path(p) to move the kaggle.json 
 $ mv kaggle.json p (p is tye path shown in the error of previous command)
 
 $ kaggle competitions download -c ifood-2019-fgvc6
+
 After this unzip all the files and run "aws1.py"
