@@ -27,7 +27,7 @@ class Spatial(nn.Module):
     self.bn2 = nn.BatchNorm2d(1)
   def forward(self, x):
     # global cross-channel averaging
-    x = torch.mean(x,1, keepdim=True) # 由hwc 变为 hw1
+    x = torch.mean(x,1, keepdim=True) 
     # 3-by-3 conv
     h = x.size(2)
     x = F.relu(self.bn1(self.conv1(x)))
@@ -49,7 +49,7 @@ class Channel(nn.Module):
 
   def forward(self, x):
     # squeeze operation (global average pooling)
-    x = F.avg_pool2d(x, x.size()[2:]) #输出是1*1*c
+    x = F.avg_pool2d(x, x.size()[2:]) 
     # excitation operation (2 conv layers)
     x = F.relu(self.bn1(self.conv1(x)))
     x = F.relu(self.bn2(self.conv2(x)))
@@ -278,7 +278,7 @@ class SGLANetwork(nn.Module):
         self.dropout = nn.Dropout(0.2)
         
         self.global_fc = nn.Sequential(
-                                nn.Linear(2048+512+1024, 2048), # 将4个区域 融合成一个 需要加上batchnorma1d, 和 relu
+                                nn.Linear(2048+512+1024, 2048), 
                                 nn.BatchNorm1d(2048),
                                 nn.ReLU(),
                                 )
